@@ -15,7 +15,11 @@ const RENDER_TO_DOM = Symbol("render to dom");
       // 上面的正则加了括号，下面的RegExp.$1就可以提取到对应的值
       this.root.addEventListener(RegExp.$1.replace(/^[\s\S]/, c => c.toLowerCase()), value);
     }else{
-      this.root.setAttribute(name, value);
+      if(name === "className"){
+        this.root.setAttribute("class",value);
+      }else{
+        this.root.setAttribute(name, value);
+      }
     }
   }
   appendChild(component){
@@ -64,8 +68,18 @@ export class Component {
   // 写一个重新绘制的方法
   rerender(){
     // console.log("rerender--执行",this._range);
-    this._range.deleteContents();
-    this[RENDER_TO_DOM](this._range);
+    // 先插入，再删除，这样就不会为空了
+    // 一，保存老的range
+    let oldRange = this._range;
+    // 二，新建一个range，复制老的range
+    let range = document.createRange();
+    range.setStart(oldRange.startContainer, oldRange.startOffset)
+    range.setEnd(oldRange.startContainer, oldRange.startOffset);
+    this[RENDER_TO_DOM](range);
+
+    // 三，把老的range放在后面，然后删除
+    oldRange.setStart(range.endContainer,range.endOffset)
+    oldRange.deleteContents();
   }
   // 实现setState的方法
   setState(newState){
@@ -116,6 +130,9 @@ export function createElement(type, attributes, ...children){
     for(let child of children){
       if(typeof child === 'string'){
         child = new TextWrapper(child);
+      }
+      if(child === null){
+        continue;
       }
       if(typeof child === 'object' && child instanceof Array){
         insertChildren(child);
