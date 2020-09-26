@@ -91,7 +91,7 @@ export class Component {
     }
     let merge = (oldState, newState) => {
       for(let p in newState){
-        if(oldState[p] === null || typeof newState[p] !== 'object' ){
+        if(oldState[p] === null || typeof oldState[p] !== 'object' ){
           oldState[p] = newState[p];
         }else{
           // 剩下这种情况，说明newState[p]是一个object
@@ -103,16 +103,6 @@ export class Component {
     merge(this.state, newState);
     this.rerender();
   }
-}
-
-
-
-export function render(component, parentElement){
-  let range = document.createRange();
-  range.setStart(parentElement, 0);
-  range.setEnd(parentElement, parentElement.childNodes.length);
-  range.deleteContents();
-  component[RENDER_TO_DOM](range);
 }
 
 export function createElement(type, attributes, ...children){
@@ -143,4 +133,12 @@ export function createElement(type, attributes, ...children){
   }
   insertChildren(children);
   return e;
+}
+
+export function render(component, parentElement){
+  let range = document.createRange();
+  range.setStart(parentElement, 0);
+  range.setEnd(parentElement, parentElement.childNodes.length);
+  range.deleteContents();
+  component[RENDER_TO_DOM](range);
 }
