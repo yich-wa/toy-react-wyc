@@ -20,17 +20,83 @@ export class Component {
   get vdom(){
     return this.render().vdom;
   }
-  get vchildren(){
-    return this.children.map(child => child.vdom);
-  }
+  // get vchildren(){
+  //   return this.children.map(child => child.vdom);
+  // }
   // 私有方法
   // rangeAPI 和 位置相关
   // domAPI里面和位置相关的是range
   [RENDER_TO_DOM](range){
     this._range = range;
-    this.render()[RENDER_TO_DOM](range);
+    // 将之前的dom存起来
+    this._vdom = this.vdom;
+    this._vdom[RENDER_TO_DOM](range);
+  }
+  update(){
+    let isSameNode = (oldNode, newNode) => {
+      // 类型不同
+      if(oldNode.type !== newNode.type){
+        return false;
+      }
+      // 属性不同
+      for( let name in newNode.props){
+        if(newNode.props[name]!==oldNode.props[name]){
+          return false;
+        }
+      }
+      // 长度不同
+      if(Object.keys(oldNode.props).length > Object.keys(newNode.props).length){
+        return false;
+      }
+      // 内容不同
+      if(newNode.type === "#text"){
+        if(newNode.content !== oldNode.content){
+          return false;
+        }
+      }
+      return true;
+    }
+    let update = (oldNode, newNode) => {
+      // type,
+      // props 打props
+      // children
+      // 对比根节点是否一致，对比children是否一致
+      if(!isSameNode(oldNode, newNode)){
+        // 不一样，重新渲染
+        newNode[RENDER_TO_DOM](oldNode._range)
+        return;
+      }
+      // 新旧数量一样，重新设置
+      newNode._range = oldNode._range;
+      let newChildren = newNode.vchildren;
+      let oldChildren = oldNode.vchildren;
+
+      if(!newChildren || !newChildren.length){
+        return;
+      }
+      let tailRange = oldChildren[oldChildren.length-1]._range;
+
+      for( let i = 0;i<newChildren.length;i++){
+        let newChild = newChildren[i];
+        let oldChild = oldChildren[i];
+        if(i < oldChildren.length){
+          update(oldChild, newChild);
+        }else{
+          // todo
+          let range = document.createRange();
+          range.setStart(tailRange.endContainer, tailRange.endOffset);
+          range.setEnd(tailRange.endContainer, tailRange.endOffset);
+          newChild[RENDER_TO_DOM](range);
+          tailRange = range;
+        }
+      }
+    }
+    let vdom = this.vdom;
+    update(this._vdom, vdom);
+    this._vdom = vdom;
   }
 
+  /*
   // 写一个重新绘制的方法
   rerender(){
     // console.log("rerender--执行",this._range);
@@ -47,6 +113,7 @@ export class Component {
     oldRange.setStart(range.endContainer,range.endOffset)
     oldRange.deleteContents();
   }
+  */
   // 实现setState的方法
   setState(newState){
     // 加入state不存在，直接赋值，这是一个短路逻辑
@@ -67,7 +134,7 @@ export class Component {
       }
     }
     merge(this.state, newState);
-    this.rerender();
+    this.update();
   }
 }
 
@@ -91,6 +158,7 @@ export class Component {
   */
   // 独立实现一个虚拟dom的一个方法
   get vdom(){
+    this.vchildren = this.children.map(child => child.vdom);
     return this;
     /*
     {
@@ -104,7 +172,7 @@ export class Component {
   }
   
   [RENDER_TO_DOM](range){
-    range.deleteContents();
+    this._range = range;
     let root = document.createElement(this.type);
     for(let name in this.props){
       // 过滤以on开头的属性
@@ -123,13 +191,18 @@ export class Component {
         }
       }
     }
-    for(let child of this.children){
+    // 避免一部分麻烦
+    if(!this.vchildren){
+      this.vchildren = this.children.map(child => child.vdom);
+    }
+    for(let child of this.vchildren){
       let childRange = document.createRange();
       childRange.setStart(root, root.childNodes.length);
       childRange.setEnd(root, root.childNodes.length);
       child[RENDER_TO_DOM](childRange);
     }
-    range.insertNode(root);
+    replaceContent(range, root);
+
   }
 }
 
@@ -138,16 +211,24 @@ class TextWrapper extends Component {
     super(content);
     this.text = "#text";
     this.content = content;
-    this.root = document.createTextNode(content);
   }
   get vdom(){
     return this;
   }
 
   [RENDER_TO_DOM](range){
-    range.deleteContents();
-    range.insertNode(this.root);
+    this._range = range;
+    let root = document.createTextNode(this.content);
+    replaceContent(range, root);
   }
+}
+
+function replaceContent(range, node){
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.deleteContents();
+  range.setStartBefore(node);
+  range.setEndAfter(node);
 }
 
 export function createElement(type, attributes, ...children){
