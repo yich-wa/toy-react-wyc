@@ -20,6 +20,9 @@ export class Component {
   get vdom(){
     return this.render().vdom;
   }
+  get vchildren(){
+    return this.children.map(child => child.vdom);
+  }
   // 私有方法
   // rangeAPI 和 位置相关
   // domAPI里面和位置相关的是range
@@ -79,58 +82,66 @@ export class Component {
   /*
   // 实质是存this.props
   setAttribute(name,value){
-    // 过滤以on开头的属性
-    // 用了正则表达式， \s和\S一个所有的空白，一个是所有的非空白
-    // [\s\S]这是正则里面用来表示所有字符的一个比较稳妥的方式
-    // 
-    if(name.match(/^on([\s\S]+)/)){
-      // 上面的正则加了括号，下面的RegExp.$1就可以提取到对应的值
-      this.root.addEventListener(RegExp.$1.replace(/^[\s\S]/, c => c.toLowerCase()), value);
-    }else{
-      if(name === "className"){
-        this.root.setAttribute("class",value);
-      }else{
-        this.root.setAttribute(name, value);
-      }
-    }
+    
   }
   // 实质是存this.children
   appendChild(component){
-    let range = document.createRange();
-    range.setStart(this.root, this.root.childNodes.length);
-    range.setEnd(this.root, this.root.childNodes.length);
-    component[RENDER_TO_DOM](range);
+   
   }
   */
   // 独立实现一个虚拟dom的一个方法
   get vdom(){
-    return {
+    return this;
+    /*
+    {
       type: this.type,
       props: this.props,
       // 从组件的children变成vdom的children
+      // 递归调用
       children: this.children.map(child => child.vdom )
-
     }
+    */
   }
   
   [RENDER_TO_DOM](range){
     range.deleteContents();
-    range.insertNode(this.root);
+    let root = document.createElement(this.type);
+    for(let name in this.props){
+      // 过滤以on开头的属性
+      // 用了正则表达式， \s和\S一个所有的空白，一个是所有的非空白
+      // [\s\S]这是正则里面用来表示所有字符的一个比较稳妥的方式
+      // 
+      let value = this.props[name];
+      if(name.match(/^on([\s\S]+)/)){
+        // 上面的正则加了括号，下面的RegExp.$1就可以提取到对应的值
+        root.addEventListener(RegExp.$1.replace(/^[\s\S]/, c => c.toLowerCase()), value);
+      }else{
+        if(name === "className"){
+          root.setAttribute("class",value);
+        }else{
+          root.setAttribute(name, value);
+        }
+      }
+    }
+    for(let child of this.children){
+      let childRange = document.createRange();
+      childRange.setStart(root, root.childNodes.length);
+      childRange.setEnd(root, root.childNodes.length);
+      child[RENDER_TO_DOM](childRange);
+    }
+    range.insertNode(root);
   }
 }
 
 class TextWrapper extends Component {
   constructor(content){
     super(content);
+    this.text = "#text";
     this.content = content;
     this.root = document.createTextNode(content);
   }
   get vdom(){
-    return {
-      type: "#text",
-      content: this.content
-
-    }
+    return this;
   }
 
   [RENDER_TO_DOM](range){
